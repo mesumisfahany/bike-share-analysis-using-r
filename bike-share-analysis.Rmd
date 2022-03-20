@@ -1,0 +1,180 @@
+---
+title: "Analysis of a Bike Sharing Service"
+author: "Mesum Isfahany"
+date: '2022-03-16'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Problem Statement 
+In this project, we will be looking the R programming language to look at Cyclistic, a bike sharing company in Chicago. The main question we wish to answer is how to convert casual riders to annual members because they generate the most profit for the company. In order to develop an effective marketing plan, we need to first differentiate the casual riders from Annual Members.
+
+
+## The Data
+The data we are using for this analysis is historical data of bike trips of both casual riders and annual members for the previous 12 months. The data we are using for this analysis was provided by Motivate Internation Inc. under this [lisence](https://ride.divvybikes.com/data-license-agreement).
+
+
+## Loading the Libraries
+
+For the purpose of this analysis we will be using the following libraries to clean, organize, calculate summary statistics and visualize the data
+
+```{r Loading the libraries, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+```
+
+
+## Loading the data from as a CSV into R
+
+```{r Loading The Data, message=FALSE, warning=FALSE}
+df <- read_csv('202004-divvy-tripdata.csv')
+```
+
+
+## Understanding the Data
+Before we begin analyzing the data, we need to first get a general understanding of the data and what it contains in order to proceed with our analysis in a more informed fashion.
+
+```{r Snapshot of the Data}
+head(df)
+```
+```{r}
+str(df)
+```
+
+
+## Checking and Cleaning the Data
+Now we will clean the data, to make sure there are no missing values, outliers or duplicates. The standard stuff!.
+
+```{r Data Cleaning}
+is.null(df)
+mean(duplicated(df))
+```
+**duplicted** would have returned a true or false, if there were any duplicated values and displayed them all. We use the mean function to  calculate the average number of duplicated values. An answer of 0 meant that there were none because FALSE is a boolean data type with the integer value of 0.
+
+## Renaming the columns
+Before before beginning the preliminary analysis, i would like to rename the **member_casual** column to **member_type** to make it more descriptive. 
+
+```{r}
+df <- rename(df, member_type = member_casual)
+```
+
+
+## The differences between the two member types
+Now we will be look at the differences between casual riders and annual members. We will start by looking at the frequency of member tyoe
+
+```{r Frequency of member type}
+df %>% 
+  group_by(member_type) %>% 
+  count()
+```
+
+
+# The fundemental differences
+To do so we will be looking at two main things based on the information available to us. The trip duration and which days each member type is more likely to use the service. So we wil be deriving the following columns: -
++ Ride Length
++ Day of the week
+
+
+## Adding a 'ride_length' column
+
+We include a ride length or ride duration column by subtracting the end time and start time of every trip in order to help determine whether ride duration plays any part in differeniating between casual riders and annual members
+
+```{r}
+df['ride_length'] = df['ended_at'] - df['started_at']
+```
+
+
+
+
+## Calculating the Average Trip Duration
+
+```{r}
+avg_trip <- df %>% 
+  group_by(member_type) %>% 
+  summarize(mean(ride_length))
+
+avg_trip
+```
+We calculate the aveage trip duration for each member type and store it in a variable **avg_trip** to visualize the data.
+
+## Visualising Ride length and membership status
+
+Before visualizing the Average trip length, we will convert it into a data frame to make it easier to work with
+
+```{r}
+avg_trip <- data.frame(avg_trip)
+colnames(avg_trip) <- c("member_type", "avg_ride_length")
+```
+
+Now we will visualize the data using a column chart
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data=avg_trip) + 
+  geom_col(mapping = aes(x=member_type, y=avg_ride_length, fill=member_type)) + 
+  labs(title="Average Ride Length of Casual Riders VS Annual Members") + xlab("Member Type") + ylab("Mean Ride Length")
+```
+
+We notice the frequency of usage of annual members as we calculate previously is almost 3x than that of casual riders, but the mean trip duration of casual riders is much higher than annual members. We
+
+
+# Adding a Day of the Week column
+
+We calculate the day of the week in this dataset to get aninsight into whether it plays an impact on membership status
+
+```{r}
+df['day_of_week'] = weekdays(as.Date(df$started_at))
+```
+
+
+## Comparing Days of the week with membership status
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data=df) + 
+  geom_bar(mapping = aes(x=day_of_week, fill=day_of_week)) +
+  facet_wrap(~member_type) +
+  theme(axis.text.x = element_text(angle = 60)) +
+  labs(title="Days When the bike share services are most used") +
+  xlab("Day of the Week") + 
+  ylab("Number of Rides")
+```
+
+Keeping the frequency of usage aside, w can see that annual members tend to have a more consistent usage of services, with a peak on sundays whereas casual members display an irregular pattern of usage which may be more obvious if the data was more comprehensive.
+
+## Continuing our analysis
+
+The data does not provide information such as user ID, which we could have used to determine the riding pattern of each member, an whether they have a routine which they follow which could in term play a role in them subscribing to the annual membership program.
+
+
+To get one final look at our data we will build a Power BI dashboard to see if we can identiy a trend between the ride length, day of the week and member type combined. We start by exporting the relevant data into a CSV format. We will make a s **start time** column for each trip (rounded out to the nearest hour), the **member_type** and the **day_of_week**  and we will order all these by **start_time**
+
+```{r}
+df['start_time'] <- round_date(df$started_at, "hours")
+df['start_time'] <- format(df$start_time, format = '%H:%M:%S')
+sorted_df <- df[c('member_type', 'start_time', 'day_of_week')]
+#sorted_df <- sorted_df[order(start_time),]
+write.csv(sorted_df,"Sorted_data.csv", row.names= TRUE)
+```
+
+## The Dashboard
+
+Using Power BI, we build this interactive [dashboard](https://github.com/mesumisfahany/bike-share-analysis-using-r/blob/main/Bike%20Share%20Visual.pdf) to make it easier to visualise what time of the day, casual riders and annual members were most likely to use a service on a given weekday, sorting the data by **start_time** 
+
+We notice that there is a lot of similarity between casual riders and annual members in their riding patterns however, members tend to go on a lot of early morning rides (between 7 to 9am) on weekdays which could be to go to work or just a healthy habit. And casual riders go on evening rides more frequently. 
+
+From a business perspective there could be two reason for this difference.
+* Casual Riders find the annual membership too expensive for their daily use, which explains why there is a similar pattern but lower frequency
+* Annual members are people who generally have more healthy habits
+
+## Reccomendations
+
+The Marketing team at Cyclistic should focus on an ad campaign which promotes cyclying as a healthy lifestyle, focusing on the benefits of daily early morning cyclying rides. When casual members adopt this daily habit, they will be more likely to purchase an annual membership which in turn would lead to greater profits for the company
+
